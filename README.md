@@ -1,4 +1,4 @@
-# OGC-DiscordBot
+# Vantchko-Quotebot
 A Twitch chat bot for quote tracking.
 
 ## Setup
