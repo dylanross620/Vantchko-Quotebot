@@ -77,6 +77,11 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         except:
             pass
 
+        # Check if asking to count quotes
+        if cmd == 'count':
+            self.send_message(f"{tags['display-name']} There are {len(self.quote_list)} quotes")
+            return
+
         # All future commands require at least 1 argument, so ensure it is there
         if len(args) < 1:
             self.send_message(f'{tags["display-name"]} Not enough arguments provided')
