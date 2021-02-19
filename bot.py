@@ -1,6 +1,7 @@
 import irc.bot
 import json
 from datetime import date
+import random
 
 NAME = 'VantchkoBot'
 OWNER = 'Vantchko'
@@ -40,11 +41,14 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         # If first word in message is '!quote', run it as a command
         message_words = e.arguments[0].split(' ')
-        if len(message_words) < 2:
-            return
 
         if message_words[0].lower() == '!quote':
-            self.do_command(e, message_words[1].lower(), message_words[2:], tags)
+            if len(message_words) < 2:
+                # Get a random quote
+                target_idx = random.randrange(0, len(self.quote_list))
+                self.send_message(f"Quote #{target_idx+1}: {self.quote_list[target_idx]}")
+            else:
+                self.do_command(e, message_words[1].lower(), message_words[2:], tags)
 
     def save_quotes(self):
         with open('quotes.json', 'w') as f:
