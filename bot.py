@@ -105,8 +105,6 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
                 except:
                     self.send_message('Quote to remove must be an integer')
-        elif cmd == 'quotecommands':
-            self.send_message('The command list can be found at https://github.com/dylanross620/Vantchko-Quotebot')
 
 def start():
     # Try to load token and client_id from 'token.env' file
