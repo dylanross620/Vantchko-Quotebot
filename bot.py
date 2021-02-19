@@ -46,7 +46,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             if len(message_words) < 2:
                 # Get a random quote
                 target_idx = random.randrange(0, len(self.quote_list))
-                self.send_message(f"Quote #{target_idx+1}: {self.quote_list[target_idx]}")
+                self.send_message(f"{tags['display-name']} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
             else:
                 self.do_command(e, message_words[1].lower(), message_words[2:], tags)
 
@@ -69,9 +69,9 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             quote_num = int(cmd)
 
             if quote_num <= len(self.quote_list) and quote_num > 0:
-                self.send_message(f"Quote #{quote_num}: {self.quote_list[quote_num-1]}")
+                self.send_message(f"{tags['display-name']} Quote #{quote_num}: {self.quote_list[quote_num-1]}")
             else:
-                self.send_message(f"There is no quote #{quote_num}")
+                self.send_message(f"{tags['display-name']} There is no quote #{quote_num}")
 
             return
         except:
@@ -79,7 +79,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         # All future commands require at least 1 argument, so ensure it is there
         if len(args) < 1:
-            self.send_message('Not enough arguments provided')
+            self.send_message(f'{tags["display-name"]} Not enough arguments provided')
             return
 
         if cmd == 'add':
@@ -93,22 +93,22 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             self.send_message(f"Quote #{len(self.quote_list)} successfully added: {quote_str}")
         elif cmd == 'remove':
             if not is_admin:
-                self.send_message('Only moderators can remove quotes')
+                self.send_message(f'{tags["display-name"]} Only moderators can remove quotes')
             else:
                 try:
                     quote_num = int(args[0])
 
                     if quote_num < 1 or quote_num > len(self.quote_list):
-                        self.send_message(f"Cannot remove quote #{quote_num}")
+                        self.send_message(f"{tags['display-name']} Cannot remove quote #{quote_num}")
                     else:
                         self.quote_list.pop(quote_num-1)
                         # Update file
                         self.save_quotes()
 
-                        self.send_message(f"Successfully removed quote #{quote_num}")
+                        self.send_message(f"{tags['display-name']} Successfully removed quote #{quote_num}")
 
                 except:
-                    self.send_message('Quote to remove must be an integer')
+                    self.send_message(f'{tags["display-name"]} Quote to remove must be an integer')
 
 def start():
     # Try to load token and client_id from 'token.env' file
