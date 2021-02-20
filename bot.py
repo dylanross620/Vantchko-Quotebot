@@ -9,29 +9,25 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-NAME = 'VantchkoBot'
-OWNER = 'Vantchko'
-
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# The ID and range of a sample spreadsheet.
-SPREADSHEET_ID = '1TsYAdaFvyfwDvaj-fjWYVQoEKcmMAQ6l4gHLjhVCp_0'
-RANGE_NAME = 'Quotes!A:A'
-READ_LINK = 'https://docs.google.com/spreadsheets/d/1TsYAdaFvyfwDvaj-fjWYVQoEKcmMAQ6l4gHLjhVCp_0/edit?usp=sharing'
-
 class TwitchBot(irc.bot.SingleServerIRCBot):
-    def __init__(self, username, token, channel, quote_list, sheet):
+    def __init__(self, quote_list, sheet, settings):
         self.quote_list = quote_list
         self.sheet = sheet
+        self.settings = settings
 
+        token = settings['token']
         if token[:6] != 'oauth:':
             token = 'oauth:' + token
+        channel = settings['channel']
         self.channel = '#' + channel
 
         # Create IRC bot connection
         server = 'irc.chat.twitch.tv'
         port = 6667
+        username = settings['bot-name']
         print('Connecting to ' + server + ' on port ' + str(port) + '...')
         irc.bot.SingleServerIRCBot.__init__(self, [(server, port, token)], username, username)
 
@@ -60,21 +56,25 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         if message_words[0].lower() == '!quote':
             if len(message_words) < 2:
-                # Get a random quote
-                target_idx = random.randrange(0, len(self.quote_list))
-                self.send_message(f"{tags['display-name']} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
+                # Ensure that there is at least 1 quote to get
+                if len(self.quote_list) == 0:
+                    self.send_message(f"{tags['display-name']} There are no quotes to display")
+                else:
+                    # Get a random quote
+                    target_idx = random.randrange(0, len(self.quote_list))
+                    self.send_message(f"{tags['display-name']} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
             else:
                 self.do_command(e, message_words[1].lower(), message_words[2:], tags)
 
     def save_quotes(self):
         # Clear sheet to remove old quotes that may have been removed
-        self.sheet.values().clear(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
+        self.sheet.values().clear(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name']).execute()
 
         # Set the sheet to have the new values
-        body = {'range':RANGE_NAME,
+        body = {'range':self.settings['range-name'],
                 'values':[[q] for q in self.quote_list],
                 'majorDimension':'ROWS'}
-        self.sheet.values().update(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME, body=body, valueInputOption='USER_ENTERED').execute()
+        self.sheet.values().update(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name'], body=body, valueInputOption='USER_ENTERED').execute()
 
     def do_command(self, e, cmd, args, tags):
         c = self.connection
@@ -155,20 +155,12 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
                         self.quote_list[quote_num-1] = edited
                         self.save_quotes()
+
+                        self.send_message(f"{tags['display-name']} Successfully edited quote #{quote_num}")
                 except:
                     self.send_message(f"{tags['display-name']} Quote to edit must be an integer")
 
 def start():
-    # Try to load token and client_id from 'token.env' file
-    token = None
-    if os.path.exists('token.env'):
-        with open('token.env', 'r') as f:
-            token = f.readline().strip()
-    if not token:
-        token = input('Please enter your Twitch TMI token: ')
-        with open('token.env', 'w') as f:
-            f.write(token)
-
     # Try to connect to the Google Sheets API
     # load credentials
     creds = None
@@ -184,18 +176,46 @@ def start():
         with open('token.json', 'w') as f:
             f.write(creds.to_json())
 
+    # Attempt to get variables from 'settings.json' file
+    settings = None
+    if os.path.exists('settings.json'):
+        # File exists, so load settings from it
+        with open('settings.json', 'r') as f:
+            settings = json.load(f)
+
+        print('Successfully loaded settings')
+    else:
+        # File doesn't exist, so prompt user for the settings and save them
+        print('Settings not found. Entering setup')
+
+        token = input('Enter your Twitch TMI Token: ')
+        name = input('Enter the bot\'s name: ')
+        owner = input('Enter the channel name: ')
+        spreadsheet_id = input('Enter the ID of the quote spreadsheet: ')
+        range_name = input('Enter the range of the sheet for quotes to enter: ')
+        read_link = input('Enter the viewing link for the quote sheet: ')
+
+        settings = {'token': token,
+                'bot-name': name,
+                'channel': owner,
+                'spreadsheet-id': spreadsheet_id,
+                'range-name': range_name,
+                'share-link': read_link}
+        with open('settings.json', 'w') as f:
+            json.dump(settings, f, indent=4)
+        print('Successfully saved settings to settings.json')
+
+    settings['channel'] = settings['channel'].lower()
+
     service = build('sheets', 'v4', credentials=creds)
 
     sheet = service.spreadsheets()
 
     # Try to load existing quotes list from sheet
-    result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
+    result = sheet.values().get(spreadsheetId=settings['spreadsheet-id'], range=settings['range-name']).execute()
     quote_list = [res[0] for res in result.get('values', [])]
 
-    username = NAME
-    channel = OWNER.lower()
-
-    bot = TwitchBot(username, token, channel, quote_list, sheet)
+    bot = TwitchBot(quote_list, sheet, settings)
     bot.start()
 
 if __name__ == '__main__':
