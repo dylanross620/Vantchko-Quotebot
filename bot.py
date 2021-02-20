@@ -9,8 +9,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-NAME = 'Radnor0'
-OWNER = 'Radnor0'
+NAME = 'VantchkoBot'
+OWNER = 'Vantchko'
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -139,6 +139,22 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
                 except:
                     self.send_message(f'{tags["display-name"]} Quote to remove must be an integer')
+        elif cmd == 'edit':
+            if not is_admin:
+                self.send_message(f"{tags['display-name']} Only moderators can remove quotes")
+            else:
+                try:
+                    quote_num = int(args[0])
+
+                    if quote_num < 1 or quote_num > len(self.quote_list):
+                        self.send_message(f"{tags['display-name']} Cannot edit quote #{quote_num}")
+                    else:
+                        quote = self.quote_list[quote_num-1]
+                        metadataIdx = quote.rindex('[')
+                        edited = f"{' '.join(args[1:])} {quote[metadataIdx:]}"
+
+                        self.quote_list[quote_num-1] = edited
+                        self.save_quotes()
 
 def start():
     # Try to load token and client_id from 'token.env' file
