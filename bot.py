@@ -16,9 +16,9 @@ OWNER = 'Vantchko'
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 # The ID and range of a sample spreadsheet.
-SPREADSHEET_ID = '116l4KSU_G22t_tKIw6AE62gLOgkVUaam1uSHval62kE'
+SPREADSHEET_ID = '1TsYAdaFvyfwDvaj-fjWYVQoEKcmMAQ6l4gHLjhVCp_0'
 RANGE_NAME = 'Quotes!A:A'
-READ_LINK = 'https://docs.google.com/spreadsheets/d/116l4KSU_G22t_tKIw6AE62gLOgkVUaam1uSHval62kE/edit?usp=sharing'
+READ_LINK = 'https://docs.google.com/spreadsheets/d/1TsYAdaFvyfwDvaj-fjWYVQoEKcmMAQ6l4gHLjhVCp_0/edit?usp=sharing'
 
 class TwitchBot(irc.bot.SingleServerIRCBot):
     def __init__(self, username, token, channel, quote_list, sheet):
