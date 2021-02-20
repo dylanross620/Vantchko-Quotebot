@@ -155,6 +155,8 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
                         self.quote_list[quote_num-1] = edited
                         self.save_quotes()
+                except:
+                    self.send_message(f"{tags['display-name']} Quote to edit must be an integer")
 
 def start():
     # Try to load token and client_id from 'token.env' file
