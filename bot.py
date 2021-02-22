@@ -104,7 +104,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             self.send_message(f"{tags['display-name']} There are {len(self.quote_list)} quotes")
             return
         if cmd == 'list':
-            self.send_message(f"{tags['display-name']} The quote list can be found at {READ_LINK}")
+            self.send_message(f"{tags['display-name']} The quote list can be found at {self.settings['share-link']}")
             return
 
         # All future commands require at least 1 argument, so ensure it is there
