@@ -44,7 +44,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
     def send_message(self, message):
         # Make sure message length doesn't exceed twitch IRC limit
-        self.connection.privmsg(self.channel, message[:512])
+        self.connection.privmsg(self.channel, message[:510])
 
     def on_pubmsg(self, c, e):
         # Clean up tags before using them
