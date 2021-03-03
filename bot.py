@@ -65,6 +65,12 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                     self.send_message(f"{tags['display-name']} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
             else:
                 self.do_command(e, message_words[1].lower(), message_words[2:], tags)
+        
+        elif message_words[0][:2].lower() == '!r':
+            if len(message_words) < 2:
+                self.send_message(f"{tags['display-name']} Must specify what to roll")
+            else:
+                self.roll_dice(message_words[1], tags['display-name'])
 
     def save_quotes(self):
         # Clear sheet to remove old quotes that may have been removed
@@ -159,6 +165,71 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                         self.send_message(f"{tags['display-name']} Successfully edited quote #{quote_num}")
                 except:
                     self.send_message(f"{tags['display-name']} Quote to edit must be an integer")
+
+    def roll_dice(self, command, user):
+        command = command.strip().lower()
+
+        # Ensure dice type is specified
+        try:
+            dice_idx = command.index('d')
+        except:
+            self.send_message(f"{user} Must specify the type of die to roll")
+            return
+
+        # Get the count of dice to be rolled
+        try:
+            dice_count = int(command[:dice_idx])
+            if dice_count < 1:
+                self.send_message("{user} Dice count must be positive")
+                return
+        except:
+            if dice_idx == 0:
+                dice_count = 1 # Make specifying dice amount optional
+            else:
+                self.send_message(f"{user} Dice count must be an integer")
+                return
+
+        # Check if a keep is specified
+        try:
+            keep_idx = command.index('k')
+        except:
+            keep_idx = len(command)
+
+        # Get dice type
+        try:
+            dice_type = int(command[dice_idx+1:keep_idx])
+            if dice_type < 1:
+                self.send_message(f"{user} Dice type must be positive")
+                return
+        except:
+            self.send_message(f"{user} Dice type must be an integer")
+            return
+
+        # Roll the dice
+        rolls = [random.randrange(1, dice_type+1) for i in range(dice_count)]
+        
+        # If keep wasn't specified, just send message and return now
+        if keep_idx == len(command):
+            self.send_message(f"{user} You rolled {', '.join([str(r) for r in rolls])}")
+            return
+
+        # Keep was specified. Find out if we are keeping high or low. Default to low
+        try:
+            reverse = command[keep_idx+1] == 'h'
+        except:
+            reverse = False
+
+        try:
+            keep_amount = int(command[keep_idx+2:])
+            if keep_amount < 1:
+                self.send_message(f"{user} Keep amount must be positive")
+                return
+        except:
+            self.send_message(f"{user} Keep amount must be an integer")
+            return
+
+        keeped = [str(r) for r in rolls if r in sorted(rolls, reverse=reverse)[:keep_amount]]
+        self.send_message(f"{user} You rolled {', '.join(keeped[:keep_amount])}")
 
 def start():
     # Try to connect to the Google Sheets API
