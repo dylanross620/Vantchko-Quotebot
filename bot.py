@@ -67,7 +67,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             else:
                 self.do_command(e, message_words[1].lower(), message_words[2:], tags)
         
-        elif message_words[0][:2].lower() == '!r':
+        elif message_words[0].lower() == '!roll' or message_words[0].lower() == '!r':
             if len(message_words) < 2:
                 self.send_message(f"{tags['display-name']} Must specify what to roll")
             else:
@@ -181,7 +181,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         try:
             dice_count = int(command[:dice_idx])
             if dice_count < 1:
-                self.send_message("{user} Dice count must be positive")
+                self.send_message(f"{user} Dice count must be positive")
                 return
         except:
             if dice_idx == 0:
