@@ -57,21 +57,24 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         if message_words[0].lower() == '!quote':
             if len(message_words) < 2:
-                # Ensure that there is at least 1 quote to get
-                if len(self.quote_list) == 0:
-                    self.send_message(f"{tags['display-name']} There are no quotes to display")
-                else:
-                    # Get a random quote
-                    target_idx = random.randrange(0, len(self.quote_list))
-                    self.send_message(f"{tags['display-name']} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
+                self.send_random_quote(tags['display-name'])
             else:
-                self.do_command(e, message_words[1].lower(), message_words[2:], tags)
+                self.quote_commands(e, message_words[1].lower(), message_words[2:], tags)
         
         elif message_words[0].lower() == '!roll' or message_words[0].lower() == '!r':
             if len(message_words) < 2:
                 self.send_message(f"{tags['display-name']} Must specify what to roll")
             else:
                 self.roll_dice(message_words[1], tags['display-name'])
+
+    def send_random_quote(self, user):
+        # Ensure that there is at least 1 quote to get
+        if len(self.quote_list) == 0:
+            self.send_message(f"{user} There are no quotes to display")
+        else:
+            # Get a random quote
+            target_idx = random.randrange(0, len(self.quote_list))
+            self.send_message(f"{user} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
 
     def save_quotes(self):
         # Clear sheet to remove old quotes that may have been removed
@@ -83,9 +86,10 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                 'majorDimension':'ROWS'}
         self.sheet.values().update(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name'], body=body, valueInputOption='USER_ENTERED').execute()
 
-    def do_command(self, e, cmd, args, tags):
+    def quote_commands(self, e, cmd, args, tags):
         c = self.connection
         badges = tags['badges'].split(',')
+        num_args = len(args)
 
         is_admin = False
         for b in badges:
@@ -110,16 +114,17 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         if cmd == 'count':
             self.send_message(f"{tags['display-name']} There are {len(self.quote_list)} quotes")
             return
+
+        # Check if asking for the quote list
         if cmd == 'list':
             self.send_message(f"{tags['display-name']} The quote list can be found at {self.settings['share-link']}")
             return
 
-        # All future commands require at least 1 argument, so ensure it is there
-        if len(args) < 1:
-            self.send_message(f'{tags["display-name"]} Not enough arguments provided')
-            return
-
         if cmd == 'add':
+            if num_args < 1:
+                self.send_message(f'{tags["display-name"]} Not enough arguments provided')
+                return
+
             date_str = date.today().strftime('%m/%d/%y')
             quoter = tags['display-name']
 
@@ -129,6 +134,10 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
             self.send_message(f"Quote #{len(self.quote_list)} successfully added: {quote_str}")
         elif cmd == 'remove':
+            if num_args < 1:
+                self.send_message(f'{tags["display-name"]} Not enough arguments provided')
+                return
+
             if not is_admin:
                 self.send_message(f'{tags["display-name"]} Only moderators can remove quotes')
             else:
@@ -147,6 +156,10 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                 except:
                     self.send_message(f'{tags["display-name"]} Quote to remove must be an integer')
         elif cmd == 'edit':
+            if num_args < 1:
+                self.send_message(f'{tags["display-name"]} Not enough arguments provided')
+                return
+
             if not is_admin:
                 self.send_message(f"{tags['display-name']} Only moderators can remove quotes")
             else:
@@ -166,6 +179,9 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                         self.send_message(f"{tags['display-name']} Successfully edited quote #{quote_num}")
                 except:
                     self.send_message(f"{tags['display-name']} Quote to edit must be an integer")
+        else:
+            # Assume user wants a random quote. They're probably saying a message after asking for the quote
+            self.send_random_quote(tags['display-name'])
 
     def roll_dice(self, command, user):
         command = command.strip().lower()
