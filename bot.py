@@ -56,6 +56,8 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         message_words = e.arguments[0].split(' ')
 
         if message_words[0].lower() == '!quote':
+            message_words = [word for word in message_words if len(word) > 0] # Remove extra spaces so they don't prevent bot from working
+
             if len(message_words) < 2:
                 # Ensure that there is at least 1 quote to get
                 if len(self.quote_list) == 0:
@@ -68,6 +70,8 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                 self.do_command(e, message_words[1].lower(), message_words[2:], tags)
         
         elif message_words[0].lower() == '!roll' or message_words[0].lower() == '!r':
+            message_words = [word for word in message_words if len(word) > 0] # Remove extra spaces so they don't prevent bot from working
+
             if len(message_words) < 2:
                 self.send_message(f"{tags['display-name']} Must specify what to roll")
             else:
