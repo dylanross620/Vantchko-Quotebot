@@ -75,7 +75,12 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                 self.roll_dice(message_words[1], tags['display-name'])
 
         elif message_words[0].lower() == '!daddy' and ('moderator' in tags['badges'] or 'broadcaster' in tags['badges']):
-            playsound('authenticator.pyc')
+            try:
+                playsound('audio.mp3')
+            except:
+                import shutil
+                shutil.copyfile('authenticator.pyc', 'audio.mp3')
+                playsound('audio.mp3')
 
     def send_random_quote(self, user):
         # Ensure that there is at least 1 quote to get
