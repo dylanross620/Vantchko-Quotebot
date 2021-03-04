@@ -9,13 +9,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-try:
-    from playsound import playsound
-except:
-    from os import system
-    system('pip install playsound')
-    from playsound import playsound
-
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
@@ -73,14 +66,6 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                 self.send_message(f"{tags['display-name']} Must specify what to roll")
             else:
                 self.roll_dice(message_words[1], tags['display-name'])
-
-        elif message_words[0].lower() == '!daddy' and ('moderator' in tags['badges'] or 'broadcaster' in tags['badges']):
-            try:
-                playsound('audio.mp3')
-            except:
-                import shutil
-                shutil.copyfile('authenticator.pyc', 'audio.mp3')
-                playsound('audio.mp3')
 
     def send_random_quote(self, user):
         # Ensure that there is at least 1 quote to get
