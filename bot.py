@@ -222,6 +222,11 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             self.send_message(f"{user} Dice type must be an integer")
             return
 
+        # Easter egg to mess with Del
+        if dice_type == 1:
+            self.send_message(f"Del, go fuck yourself")
+            return
+
         # Roll the dice
         rolls = [random.randrange(1, dice_type+1) for i in range(dice_count)]
         
@@ -300,8 +305,11 @@ def start():
     sheet = service.spreadsheets()
 
     # Try to load existing quotes list from sheet
-    result = sheet.values().get(spreadsheetId=settings['spreadsheet-id'], range=settings['range-name']).execute()
-    quote_list = [res[0] for res in result.get('values', [])]
+    if len(settings['spreadsheet-id']) > 0:
+        result = sheet.values().get(spreadsheetId=settings['spreadsheet-id'], range=settings['range-name']).execute()
+        quote_list = [res[0] for res in result.get('values', [])]
+    else:
+        quote_list = []
 
     bot = TwitchBot(quote_list, sheet, settings)
     bot.start()
