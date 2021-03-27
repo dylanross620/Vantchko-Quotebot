@@ -224,7 +224,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         # Easter egg to mess with Del
         if dice_type == 1:
-            self.send_message(f"Nice try, Del")
+            self.send_message(f"Nice try, Del Kappa")
             return
 
         # Roll the dice
