@@ -74,7 +74,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         else:
             # Get a random quote
             target_idx = random.randrange(0, len(self.quote_list))
-            self.send_message(f"{user} Quote #{target_idx+1}: {self.quote_list[target_idx]}")
+            self.send_message(f"{user} Quote #{target_idx+1}: {self.get_quote(target_idx)}")
 
     def save_quotes(self):
         # Clear sheet to remove old quotes that may have been removed
@@ -82,9 +82,14 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         # Set the sheet to have the new values
         body = {'range':self.settings['range-name'],
-                'values':[[q] for q in self.quote_list],
+                'values':[[q[0], str(q[1])] for q in self.quote_list],
                 'majorDimension':'ROWS'}
         self.sheet.values().update(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name'], body=body, valueInputOption='USER_ENTERED').execute()
+
+    def get_quote(self, num):
+        self.quote_list[num][1] += 1
+        self.save_quotes()
+        return self.quote_list[num][0]
 
     def quote_commands(self, e, cmd, args, tags):
         c = self.connection
@@ -102,7 +107,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             quote_num = int(cmd)
 
             if quote_num <= len(self.quote_list) and quote_num > 0:
-                self.send_message(f"{tags['display-name']} Quote #{quote_num}: {self.quote_list[quote_num-1]}")
+                self.send_message(f"{tags['display-name']} Quote #{quote_num}: {self.get_quote(quote_num - 1)}")
             else:
                 self.send_message(f"{tags['display-name']} There is no quote #{quote_num}")
 
@@ -112,6 +117,17 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
         # Check if asking to count quotes
         if cmd == 'count':
+            if num_args >= 1:
+                try:
+                    quote_num = int(args[0])
+
+                    if quote_num <= len(self.quote_list) and quote_num > 0:
+                        num_times = self.quote_list[quote_num - 1][1]
+                        self.send_message(f"{tags['display-name']} Quote #{quote_num} has been used {num_times} time{'' if num_times == 1 else 's'}")
+                        return
+                except:
+                    pass
+
             self.send_message(f"{tags['display-name']} There are {len(self.quote_list)} quotes")
             return
 
@@ -169,11 +185,11 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
                     if quote_num < 1 or quote_num > len(self.quote_list):
                         self.send_message(f"{tags['display-name']} Cannot edit quote #{quote_num}")
                     else:
-                        quote = self.quote_list[quote_num-1]
+                        quote = self.quote_list[quote_num-1][0]
                         metadataIdx = quote.rindex('[')
                         edited = f"{' '.join(args[1:])} {quote[metadataIdx:]}"
 
-                        self.quote_list[quote_num-1] = edited
+                        self.quote_list[quote_num-1][0] = edited
                         self.save_quotes()
 
                         self.send_message(f"{tags['display-name']} Successfully edited quote #{quote_num}")
@@ -307,7 +323,7 @@ def start():
     # Try to load existing quotes list from sheet
     if len(settings['spreadsheet-id']) > 0:
         result = sheet.values().get(spreadsheetId=settings['spreadsheet-id'], range=settings['range-name']).execute()
-        quote_list = [res[0] for res in result.get('values', [])]
+        quote_list = [[res[0], int(res[1])] for res in result.get('values', [])]
     else:
         quote_list = []
 
