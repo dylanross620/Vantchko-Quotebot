@@ -145,7 +145,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             quoter = tags['display-name']
 
             quote_str = f"{' '.join(args)} [{date_str}] quoted by {quoter}"
-            self.quote_list.append(quote_str)
+            self.quote_list.append([quote_str, 0])
             self.save_quotes()
 
             self.send_message(f"Quote #{len(self.quote_list)} successfully added: {quote_str}")
