@@ -12,6 +12,25 @@ from google.oauth2.credentials import Credentials
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
+def sheets_connect():
+    # Load credentials
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save credentials
+        with open('token.json', 'w') as f:
+            f.write(creds.to_json())
+
+    service = build('sheets', 'v4', credentials=creds)
+
+    return service.spreadsheets()
+
 class TwitchBot(irc.bot.SingleServerIRCBot):
     def __init__(self, quote_list, sheet, settings):
         self.quote_list = quote_list
@@ -76,15 +95,23 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             target_idx = random.randrange(0, len(self.quote_list))
             self.send_message(f"{user} Quote #{target_idx+1}: {self.get_quote(target_idx)}")
 
-    def save_quotes(self):
-        # Clear sheet to remove old quotes that may have been removed
-        self.sheet.values().clear(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name']).execute()
+    def save_quotes(self, recursed=False):
+        try:
+            # Clear sheet to remove old quotes that may have been removed
+            self.sheet.values().clear(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name']).execute()
 
-        # Set the sheet to have the new values
-        body = {'range':self.settings['range-name'],
-                'values':[[q[0], str(q[1])] for q in self.quote_list],
-                'majorDimension':'ROWS'}
-        self.sheet.values().update(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name'], body=body, valueInputOption='USER_ENTERED').execute()
+            # Set the sheet to have the new values
+            body = {'range':self.settings['range-name'],
+                    'values':[[q[0], str(q[1])] for q in self.quote_list],
+                    'majorDimension':'ROWS'}
+            self.sheet.values().update(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name'], body=body, valueInputOption='USER_ENTERED').execute()
+        except Exception as e:
+            if not recursed:
+                print('Disconnected from sheets, attempting to refresh')
+                self.sheet = sheets_connect()
+                save_quotes(True)
+            else:
+                raise e
 
     def get_quote(self, num):
         self.quote_list[num][1] += 1
@@ -270,21 +297,6 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         self.send_message(f"{user} You rolled {', '.join(keeped[:keep_amount])}")
 
 def start():
-    # Try to connect to the Google Sheets API
-    # load credentials
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save credentials
-        with open('token.json', 'w') as f:
-            f.write(creds.to_json())
-
     # Attempt to get variables from 'settings.json' file
     settings = None
     if os.path.exists('settings.json'):
@@ -316,9 +328,7 @@ def start():
 
     settings['channel'] = settings['channel'].lower()
 
-    service = build('sheets', 'v4', credentials=creds)
-
-    sheet = service.spreadsheets()
+    sheet = sheets_connect() 
 
     # Try to load existing quotes list from sheet
     if len(settings['spreadsheet-id']) > 0:
