@@ -107,9 +107,9 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             self.sheet.values().update(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name'], body=body, valueInputOption='USER_ENTERED').execute()
         except Exception as e:
             if not recursed:
-                print('Disconnected from sheets, attempting to refresh')
+                print('Disconnected from sheets, refreshing')
                 self.sheet = sheets_connect()
-                save_quotes(True)
+                self.save_quotes(True)
             else:
                 raise e
 
