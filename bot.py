@@ -1,7 +1,4 @@
-import irc.bot
 import json
-from datetime import date
-import random
 
 import os.path
 from googleapiclient.discovery import build
@@ -10,90 +7,46 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/youtube']
 
-def sheets_connect():
-    # Load credentials
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save credentials
-        with open('token.json', 'w') as f:
-            f.write(creds.to_json())
+settings = None
+sheet = None
+quote_list = None
 
-    service = build('sheets', 'v4', credentials=creds)
-
-    return service.spreadsheets()
-
-class TwitchBot(irc.bot.SingleServerIRCBot):
-    def __init__(self, quote_list, sheet, settings):
-        self.quote_list = quote_list
-        self.sheet = sheet
+class QuoteBot:
+    def __init__(self, settings):
         self.settings = settings
+        self.load_quotes()
 
-        token = settings['token']
-        if token[:6] != 'oauth:':
-            token = 'oauth:' + token
-        channel = settings['channel']
-        self.channel = '#' + channel
-
-        # Create IRC bot connection
-        server = 'irc.chat.twitch.tv'
-        port = 6667
-        username = settings['bot-name']
-        print('Connecting to ' + server + ' on port ' + str(port) + '...')
-        irc.bot.SingleServerIRCBot.__init__(self, [(server, port, token)], username, username)
-
-    def on_welcome(self, c, e):
-        print('Joining ' + self.channel)
-
-        # You must request specific capabilities before you can use them
-        c.cap('REQ', ':twitch.tv/membership')
-        c.cap('REQ', ':twitch.tv/tags')
-        c.cap('REQ', ':twitch.tv/commands')
-        c.join(self.channel)
-        self.send_message('Bot online.\a')
-        print('Twitch bot initialized')
-
-    def send_message(self, message):
-        # Make sure message length doesn't exceed twitch IRC limit
-        self.connection.privmsg(self.channel, message[:256])
-
-    def on_pubmsg(self, c, e):
-        # Clean up tags before using them
-        tags = {kvpair['key']: kvpair['value'] for kvpair in e.tags}
-        if 'badges' not in tags or tags['badges'] is None:
-            tags['badges'] = ''
-
-        # If first word in message is '!quote', run it as a command
-        message_words = e.arguments[0].split()
-
-        if message_words[0].lower() == '!quote':
-            if len(message_words) < 2:
-                self.send_random_quote(tags['display-name'])
+    def sheets_connect(self):
+        # Load credentials
+        creds = None
+        if os.path.exists('token.json'):
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
             else:
-                self.quote_commands(e, message_words[1].lower(), message_words[2:], tags)
-        
-        elif message_words[0].lower() == '!roll' or message_words[0].lower() == '!r':
-            if len(message_words) < 2:
-                self.send_message(f"{tags['display-name']} Must specify what to roll")
-            else:
-                self.roll_dice(message_words[1], tags['display-name'])
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+            # Save credentials
+            with open('token.json', 'w') as f:
+                f.write(creds.to_json())
 
-    def send_random_quote(self, user):
-        # Ensure that there is at least 1 quote to get
-        if len(self.quote_list) == 0:
-            self.send_message(f"{user} There are no quotes to display")
+        service = build('sheets', 'v4', credentials=creds)
+
+        return service.spreadsheets()
+
+    # Load the spreadsheet and any quotes stored in it. Returns both the spreadsheet and the quotes
+    def load_quotes(self):
+        self.sheet = self.sheets_connect() 
+
+        # Try to load existing quotes list from sheet
+        if len(self.settings['spreadsheet-id']) > 0:
+            result = self.sheet.values().get(spreadsheetId=self.settings['spreadsheet-id'], range=self.settings['range-name']).execute()
+            self.quote_list = [[res[0], int(res[1])] for res in result.get('values', [])]
         else:
-            # Get a random quote
-            target_idx = random.randrange(0, len(self.quote_list))
-            self.send_message(f"{user} Quote #{target_idx+1}: {self.get_quote(target_idx)}")
+            self.quote_list = []
 
     def save_quotes(self, recursed=False):
         try:
@@ -108,197 +61,42 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
         except Exception as e:
             if not recursed:
                 print('Disconnected from sheets, refreshing')
-                self.sheet = sheets_connect()
+                self.sheet = self.sheets_connect()
                 self.save_quotes(True)
             else:
                 raise e
 
-    def get_quote(self, num):
-        self.quote_list[num][1] += 1
-        self.save_quotes()
-        return self.quote_list[num][0]
-
-    def quote_commands(self, e, cmd, args, tags):
-        c = self.connection
-        badges = tags['badges'].split(',')
-        num_args = len(args)
-
-        is_admin = False
-        for b in badges:
-            if 'moderator' in b or 'broadcaster' in b:
-                is_admin = True
-                break
-
-        # Check if user is asking for a specific quote
-        try:
-            quote_num = int(cmd)
-
-            if quote_num <= len(self.quote_list) and quote_num > 0:
-                self.send_message(f"{tags['display-name']} Quote #{quote_num}: {self.get_quote(quote_num - 1)}")
-            else:
-                self.send_message(f"{tags['display-name']} There is no quote #{quote_num}")
-
-            return
-        except:
-            pass
-
-        # Check if asking to count quotes
-        if cmd == 'count':
-            if num_args >= 1:
-                try:
-                    quote_num = int(args[0])
-
-                    if quote_num <= len(self.quote_list) and quote_num > 0:
-                        num_times = self.quote_list[quote_num - 1][1]
-                        self.send_message(f"{tags['display-name']} Quote #{quote_num} has been used {num_times} time{'' if num_times == 1 else 's'}")
-                        return
-                except:
-                    pass
-
-            self.send_message(f"{tags['display-name']} There are {len(self.quote_list)} quotes")
-            return
-
-        # Check if asking for the quote list
-        if cmd == 'list':
-            self.send_message(f"{tags['display-name']} The quote list can be found at {self.settings['share-link']}")
-            return
-
-        if cmd == 'add':
-            if num_args < 1:
-                self.send_message(f'{tags["display-name"]} Not enough arguments provided')
-                return
-
-            date_str = date.today().strftime('%m/%d/%y')
-            quoter = tags['display-name']
-
-            quote_str = f"{' '.join(args)} [{date_str}] quoted by {quoter}"
-            self.quote_list.append([quote_str, 0])
+    def get_quote(self, num, count=True):
+        # Only count this as retrieving a quote (and update sheet correspondingly) if asked for by user
+        if count:
+            self.quote_list[num][1] += 1
             self.save_quotes()
 
-            self.send_message(f"Quote #{len(self.quote_list)} successfully added: {quote_str}")
-        elif cmd == 'remove':
-            if num_args < 1:
-                self.send_message(f'{tags["display-name"]} Not enough arguments provided')
-                return
+        return self.quote_list[num][0]
 
-            if not is_admin:
-                self.send_message(f'{tags["display-name"]} Only moderators can remove quotes')
-            else:
-                try:
-                    quote_num = int(args[0])
+    def quote_usage_count(self, num):
+        return self.quote_list[num][1]
 
-                    if quote_num < 1 or quote_num > len(self.quote_list):
-                        self.send_message(f"{tags['display-name']} Cannot remove quote #{quote_num}")
-                    else:
-                        self.quote_list.pop(quote_num-1)
-                        # Update file
-                        self.save_quotes()
+    def quote_count(self):
+        return len(self.quote_list)
 
-                        self.send_message(f"{tags['display-name']} Successfully removed quote #{quote_num}")
+    def get_share_link(self):
+        return self.settings['share-link']
 
-                except:
-                    self.send_message(f'{tags["display-name"]} Quote to remove must be an integer')
-        elif cmd == 'edit':
-            if num_args < 1:
-                self.send_message(f'{tags["display-name"]} Not enough arguments provided')
-                return
-
-            if not is_admin:
-                self.send_message(f"{tags['display-name']} Only moderators can remove quotes")
-            else:
-                try:
-                    quote_num = int(args[0])
-
-                    if quote_num < 1 or quote_num > len(self.quote_list):
-                        self.send_message(f"{tags['display-name']} Cannot edit quote #{quote_num}")
-                    else:
-                        quote = self.quote_list[quote_num-1][0]
-                        metadataIdx = quote.rindex('[')
-                        edited = f"{' '.join(args[1:])} {quote[metadataIdx:]}"
-
-                        self.quote_list[quote_num-1][0] = edited
-                        self.save_quotes()
-
-                        self.send_message(f"{tags['display-name']} Successfully edited quote #{quote_num}")
-                except:
-                    self.send_message(f"{tags['display-name']} Quote to edit must be an integer")
+    def add_quote(self, quote, idx=-1):
+        if idx < 0:
+            self.quote_list.append([quote, 0])
         else:
-            # Assume user wants a random quote. They're probably saying a message after asking for the quote
-            self.send_random_quote(tags['display-name'])
+            self.quote_list[idx][0] = quote
 
-    def roll_dice(self, command, user):
-        command = command.strip().lower()
+        self.save_quotes()
 
-        # Ensure dice type is specified
-        try:
-            dice_idx = command.index('d')
-        except:
-            self.send_message(f"{user} Must specify the type of die to roll")
-            return
+    def remove_quote(self, num):
+        self.quote_list.pop(num)
+        self.save_quotes()
 
-        # Get the count of dice to be rolled
-        try:
-            dice_count = int(command[:dice_idx])
-            if dice_count < 1:
-                self.send_message(f"{user} Dice count must be positive")
-                return
-        except:
-            if dice_idx == 0:
-                dice_count = 1 # Make specifying dice amount optional
-            else:
-                self.send_message(f"{user} Dice count must be an integer")
-                return
-
-        # Check if a keep is specified
-        try:
-            keep_idx = command.index('k')
-        except:
-            keep_idx = len(command)
-
-        # Get dice type
-        try:
-            dice_type = int(command[dice_idx+1:keep_idx])
-            if dice_type < 1:
-                self.send_message(f"{user} Dice type must be positive")
-                return
-        except:
-            self.send_message(f"{user} Dice type must be an integer")
-            return
-
-        # Easter egg to mess with Del
-        if dice_type == 1:
-            self.send_message(f"Nice try, Del Kappa")
-            return
-
-        # Roll the dice
-        rolls = [random.randrange(1, dice_type+1) for i in range(dice_count)]
-        
-        # If keep wasn't specified, just send message and return now
-        if keep_idx == len(command):
-            self.send_message(f"{user} You rolled {', '.join([str(r) for r in rolls])}")
-            return
-
-        # Keep was specified. Find out if we are keeping high or low. Default to low
-        try:
-            reverse = command[keep_idx+1] == 'h'
-        except:
-            reverse = False
-
-        try:
-            keep_amount = int(command[keep_idx+2:])
-            if keep_amount < 1:
-                self.send_message(f"{user} Keep amount must be positive")
-                return
-        except:
-            self.send_message(f"{user} Keep amount must be an integer")
-            return
-
-        keeped = [str(r) for r in rolls if r in sorted(rolls, reverse=reverse)[:keep_amount]]
-        self.send_message(f"{user} You rolled {', '.join(keeped[:keep_amount])}")
-
-def start():
+def parse_settings():
     # Attempt to get variables from 'settings.json' file
-    settings = None
     if os.path.exists('settings.json'):
         # File exists, so load settings from it
         with open('settings.json', 'r') as f:
@@ -328,16 +126,13 @@ def start():
 
     settings['channel'] = settings['channel'].lower()
 
-    sheet = sheets_connect() 
+    return settings
 
-    # Try to load existing quotes list from sheet
-    if len(settings['spreadsheet-id']) > 0:
-        result = sheet.values().get(spreadsheetId=settings['spreadsheet-id'], range=settings['range-name']).execute()
-        quote_list = [[res[0], int(res[1])] for res in result.get('values', [])]
-    else:
-        quote_list = []
+def start():
+    settings = parse_settings()
 
-    bot = TwitchBot(quote_list, sheet, settings)
+    from twitch import TwitchBot
+    bot = TwitchBot(settings)
     bot.start()
 
 if __name__ == '__main__':
