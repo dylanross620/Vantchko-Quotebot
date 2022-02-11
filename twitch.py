@@ -1,27 +1,54 @@
+import json
 import random
 import irc.bot
+import os.path
 from datetime import date
 
 from bot import QuoteBot
 
 class TwitchBot(irc.bot.SingleServerIRCBot):
-    def __init__(self, settings):
-        self.settings = settings
+    def __init__(self, bot):
+        self.bot = bot
 
-        self.bot = QuoteBot(settings)
+        self.parse_settings()
 
-        token = settings['token']
+        token = self.settings['token']
         if token[:6] != 'oauth:':
             token = 'oauth:' + token
-        channel = settings['channel']
+        channel = self.settings['channel']
         self.channel = '#' + channel
 
         # Create IRC bot connection
         server = 'irc.chat.twitch.tv'
         port = 6667
-        username = settings['bot-name']
+        username = self.settings['bot-name']
         print('Connecting to ' + server + ' on port ' + str(port) + '...')
         irc.bot.SingleServerIRCBot.__init__(self, [(server, port, token)], username, username)
+
+    def parse_settings(self):
+        # Attempt to get variables from 'settings_twitch.json' file
+            if os.path.exists('settings_twitch.json'):
+                # File exists, so load settings from it
+                with open('settings_twitch.json', 'r') as f:
+                    self.settings = json.load(f)
+
+                print('Successfully loaded Twitch settings')
+            else:
+                # File doesn't exist, so prompt user for the settings and save them
+                print('Twitch settings not found. Entering setup')
+
+                token = input('Enter your Twitch TMI Token: ')
+                name = input('Enter the bot\'s name: ')
+                owner = input('Enter the channel name: ')
+
+                self.settings = {'token': token,
+                        'bot-name': name,
+                        'channel': owner}
+                with open('settings_twitch.json', 'w') as f:
+                    json.dump(self.settings, f, indent=4)
+                print('Successfully saved twitch settings to settings_twitch.json')
+
+            self.settings['channel'] = self.settings['channel'].lower()
 
     def on_welcome(self, c, e):
         print('Joining ' + self.channel)
@@ -175,10 +202,3 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
     def roll_dice(self, command, user):
         command = command.strip().lower()
         self.send_message(f"{user} {self.bot.roll_dice(command)[0]}")
-
-#if __name__ == '__main__':
-#    settings = self.bot.parse_settings()
-#    sheet, quote_list = self.bot.load_quotes(settings)
-#
-#    twitch = TwitchBot(quote_list, sheet, settings)
-#    twitch.start()

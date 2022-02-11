@@ -163,37 +163,29 @@ def parse_settings():
         with open('settings.json', 'r') as f:
             settings = json.load(f)
 
-        print('Successfully loaded settings')
+        print('Successfully loaded quote bot settings')
     else:
         # File doesn't exist, so prompt user for the settings and save them
         print('Settings not found. Entering setup')
 
-        token = input('Enter your Twitch TMI Token: ')
-        name = input('Enter the bot\'s name: ')
-        owner = input('Enter the channel name: ')
         spreadsheet_id = input('Enter the ID of the quote spreadsheet: ')
         range_name = input('Enter the range of the sheet for quotes to enter: ')
         read_link = input('Enter the viewing link for the quote sheet: ')
 
-        settings = {'token': token,
-                'bot-name': name,
-                'channel': owner,
-                'spreadsheet-id': spreadsheet_id,
+        settings = {'spreadsheet-id': spreadsheet_id,
                 'range-name': range_name,
                 'share-link': read_link}
         with open('settings.json', 'w') as f:
             json.dump(settings, f, indent=4)
         print('Successfully saved settings to settings.json')
 
-    settings['channel'] = settings['channel'].lower()
-
     return settings
 
 def start():
-    settings = parse_settings()
+    bot = QuoteBot(parse_settings())
 
     from twitch import TwitchBot
-    bot = TwitchBot(settings)
+    bot = TwitchBot(bot)
     bot.start()
 
 if __name__ == '__main__':
