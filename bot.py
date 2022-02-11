@@ -1,11 +1,14 @@
 import json
 import random
 
+from sys import argv
+from datetime import date
+
 import os.path
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/youtube']
@@ -76,17 +79,13 @@ class QuoteBot:
         return self.quote_list[num][0]
 
     def get_random_quote(self):
+        if len(self.quote_list) == 0:
+            return (-1, "There are no quotes to display")
         num = random.randrange(0, len(self.quote_list))
         return (num, self.get_quote(num))
 
     def quote_usage_count(self, num):
         return self.quote_list[num][1]
-
-    def quote_count(self):
-        return len(self.quote_list)
-
-    def get_share_link(self):
-        return self.settings['share-link']
 
     def add_quote(self, quote, idx=-1):
         if idx < 0:
@@ -99,6 +98,95 @@ class QuoteBot:
     def remove_quote(self, num):
         self.quote_list.pop(num)
         self.save_quotes()
+
+    def quote_commands(self, cmd, args, user, is_admin):
+        num_args = len(args)
+
+        # Check if user is asking for a specific quote
+        try:
+            quote_num = int(cmd)
+
+            if quote_num <= len(self.quote_list) and quote_num > 0:
+                return f"{user} Quote #{quote_num}: {self.get_quote(quote_num-1)}"
+            else:
+                return f"{user} There is no quote #{quote_num}"
+        except:
+            pass
+
+        # Check if asking to count quotes
+        if cmd == 'count':
+            if num_args >= 1:
+                try:
+                    quote_num = int(args[0])
+
+                    if quote_num <= len(self.quote_list) and quote_num > 0:
+                        num_times = self.quote_usage_count(quote_num-1)
+                        return f"{user} Quote #{quote_num} has been used {num_times} time{'' if num_times == 1 else 's'}"
+                except:
+                    pass
+
+            return f"{user} There are {len(self.quote_list)} quotes"
+
+        # Check if asking for the quote list
+        if cmd == 'list':
+            return f"{user} The quote list can be found at {self.settings['share-link']}"
+
+        if cmd == 'add':
+            if num_args < 1:
+                return f"{user} Not enough arguments provided"
+
+            date_str = date.today().strftime('%m/%d/%y')
+
+            quote_str = f"{' '.join(args)} [{date_str}] quoted by {user}"
+            self.add_quote(quote_str)
+
+            return f"{user} Quote #{len(self.quote_list)} successfully added: {quote_str}"
+        elif cmd == 'remove':
+            if num_args < 1:
+                return f"{user} Not enough arguments provided"
+
+            if not is_admin:
+                return f"{user} Only moderators can remove quotes"
+            else:
+                try:
+                    quote_num = int(args[0])
+
+                    if quote_num < 1 or quote_num > len(self.quote_list):
+                        return f"{user} Cannot remove quote #{quote_num}"
+                    else:
+                        self.remove_quote(quote_num-1)
+
+                        return f"{user} Successfully removed quote #{quote_num}"
+
+                except:
+                    return f"{user} Quote to remove must be an integer"
+        elif cmd == 'edit':
+            if num_args < 1:
+                return f"{user} Not enough arguments provided"
+
+            if not is_admin:
+                return f"{user} Only moderators can remove quotes"
+            else:
+                try:
+                    quote_num = int(args[0])
+
+                    if quote_num < 1 or quote_num > len(self.quote_list):
+                        return f"{user} Cannot edit quote #{quote_num}"
+                    else:
+                        quote = self.get_quote(quote_num-1, False)
+                        metadataIdx = quote.rindex('[')
+                        edited = f"{' '.join(args[1:])} {quote[metadataIdx:]}"
+
+                        self.add_quote(edited, quote_num-1)
+
+                        return f"{user} Successfully edited quote #{quote_num}"
+                except:
+                    return f"{user} Quote to edit must be an integer"
+        else:
+            # Assume user wants a random quote. They're probably saying a message after asking for the quote
+            num, quote = self.get_random_quote()
+            return f"{user} Quote #{num}: {quote}"
+
 
     def roll_dice(self, command):
         # Ensure dice type is specified
@@ -182,11 +270,23 @@ def parse_settings():
     return settings
 
 def start():
+    if len(argv) < 2:
+        print(f"Usage: {argv[0]} <bot type (twitch|youtube)>")
+        return
+
     bot = QuoteBot(parse_settings())
 
-    from twitch import TwitchBot
-    bot = TwitchBot(bot)
-    bot.start()
+    arg = argv[1].strip().lower()
+    if arg == 'twitch': 
+        from twitch import TwitchBot
+        twitch_bot = TwitchBot(bot)
+        twitch_bot.start()
+    elif arg == 'youtube' or arg == 'yt':
+        from youtube import YoutubeBot
+        yt_bot = YoutubeBot(bot)
+        yt_bot.start()
+    else:
+        print(f"Unknown bot type {argv[1].strip()}")
 
 if __name__ == '__main__':
     start()
