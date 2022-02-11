@@ -65,8 +65,8 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
             self.send_message(f"{user} There are no quotes to display")
         else:
             # Get a random quote
-            target_idx = random.randrange(0, self.bot.quote_count())
-            self.send_message(f"{user} Quote #{target_idx+1}: {self.bot.get_quote(target_idx)}")
+            num, quote = self.bot.get_random_quote()
+            self.send_message(f"{user} Quote #{num}: {quote}")
 
     def quote_commands(self, e, cmd, args, tags):
         c = self.connection
@@ -174,73 +174,7 @@ class TwitchBot(irc.bot.SingleServerIRCBot):
 
     def roll_dice(self, command, user):
         command = command.strip().lower()
-
-        # Ensure dice type is specified
-        try:
-            dice_idx = command.index('d')
-        except:
-            self.send_message(f"{user} Must specify the type of die to roll")
-            return
-
-        # Get the count of dice to be rolled
-        try:
-            dice_count = int(command[:dice_idx])
-            if dice_count < 1:
-                self.send_message(f"{user} Dice count must be positive")
-                return
-        except:
-            if dice_idx == 0:
-                dice_count = 1 # Make specifying dice amount optional
-            else:
-                self.send_message(f"{user} Dice count must be an integer")
-                return
-
-        # Check if a keep is specified
-        try:
-            keep_idx = command.index('k')
-        except:
-            keep_idx = len(command)
-
-        # Get dice type
-        try:
-            dice_type = int(command[dice_idx+1:keep_idx])
-            if dice_type < 1:
-                self.send_message(f"{user} Dice type must be positive")
-                return
-        except:
-            self.send_message(f"{user} Dice type must be an integer")
-            return
-
-        # Easter egg to mess with Del
-        if dice_type == 1:
-            self.send_message(f"Nice try, Del Kappa")
-            return
-
-        # Roll the dice
-        rolls = [random.randrange(1, dice_type+1) for i in range(dice_count)]
-        
-        # If keep wasn't specified, just send message and return now
-        if keep_idx == len(command):
-            self.send_message(f"{user} You rolled {', '.join([str(r) for r in rolls])}")
-            return
-
-        # Keep was specified. Find out if we are keeping high or low. Default to low
-        try:
-            reverse = command[keep_idx+1] == 'h'
-        except:
-            reverse = False
-
-        try:
-            keep_amount = int(command[keep_idx+2:])
-            if keep_amount < 1:
-                self.send_message(f"{user} Keep amount must be positive")
-                return
-        except:
-            self.send_message(f"{user} Keep amount must be an integer")
-            return
-
-        keeped = [str(r) for r in rolls if r in sorted(rolls, reverse=reverse)[:keep_amount]]
-        self.send_message(f"{user} You rolled {', '.join(keeped[:keep_amount])}")
+        self.send_message(f"{user} {self.bot.roll_dice(command)[0]}")
 
 #if __name__ == '__main__':
 #    settings = self.bot.parse_settings()

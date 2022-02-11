@@ -1,4 +1,5 @@
 import json
+import random
 
 import os.path
 from googleapiclient.discovery import build
@@ -74,6 +75,10 @@ class QuoteBot:
 
         return self.quote_list[num][0]
 
+    def get_random_quote(self):
+        num = random.randrange(0, len(self.quote_list))
+        return (num, self.get_quote(num))
+
     def quote_usage_count(self, num):
         return self.quote_list[num][1]
 
@@ -94,6 +99,62 @@ class QuoteBot:
     def remove_quote(self, num):
         self.quote_list.pop(num)
         self.save_quotes()
+
+    def roll_dice(self, command):
+        # Ensure dice type is specified
+        try:
+            dice_idx = command.index('d')
+        except:
+            return "Must specify the type of die to roll", False
+
+        # Get the count of dice to be rolled
+        try:
+            dice_count = int(command[:dice_idx])
+            if dice_count < 1:
+                return "Dice count must be positive", False
+        except:
+            if dice_idx == 0:
+                dice_count = 1 # Make specifying dice amount optional
+            else:
+                return "Dice count must be an integer", False
+
+        # Check if a keep is specified
+        try:
+            keep_idx = command.index('k')
+        except:
+            keep_idx = len(command)
+
+        # Get dice type
+        try:
+            dice_type = int(command[dice_idx+1:keep_idx])
+            if dice_type < 1:
+                return "Dice type must be positive", False
+        except:
+            return "Dice type must be an integer", False
+
+        # Roll the dice
+        rolls = [random.randrange(1, dice_type+1) for i in range(dice_count)]
+        
+        # If keep wasn't specified, just send message and return now
+        if keep_idx == len(command):
+            return f"You rolled {', '.join([str(r) for r in rolls])}", True
+
+        # Keep was specified. Find out if we are keeping high or low. Default to low
+        try:
+            reverse = command[keep_idx+1] == 'h'
+        except:
+            reverse = False
+
+        try:
+            keep_amount = int(command[keep_idx+2:])
+            if keep_amount < 1:
+                return "Keep amount must be positive", False
+        except:
+            return "Keep amount must be an integer", False
+
+        keeped = [str(r) for r in rolls if r in sorted(rolls, reverse=reverse)[:keep_amount]]
+        return f"You rolled {', '.join(keeped[:keep_amount])}", True
+
 
 def parse_settings():
     # Attempt to get variables from 'settings.json' file
