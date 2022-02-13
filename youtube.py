@@ -15,7 +15,12 @@ class YoutubeBot:
         self.youtube = self.youtube_connect()
         print('Successfully connected to Youtube')
 
-        self.stream_id = input('Enter Youtube stream id: ').strip()
+        video_id = input('Enter Youtube stream id: ').strip()
+        req = self.youtube.videos().list(part='liveStreamingDetails', id=video_id)
+        resp = req.execute()
+
+        self.stream_id = resp['items'][0]['liveStreamingDetails']['activeLiveChatId']
+        print(self.stream_id)
         self.next_page_token = None
 
     def youtube_connect(self):
@@ -36,39 +41,47 @@ class YoutubeBot:
 
         service = build(API_SERVICE_NAME, API_VERSION, credentials=creds)
 
-        return service.liveChatMessages()
+        return service
 
     def send_message(self, message):
-        body = {'snippet': {
-            'liveChatId': self.stream_id,
-            'type': 'textMessageEvent',
-            'textMessageDetails': {
-                'messageText': message
+        body = {
+            'snippet': {
+                'liveChatId': self.stream_id,
+                'type': 'textMessageEvent',
+                'textMessageDetails': {
+                    'messageText': message
                 }
-            }}
+            }
+        }
 
-        request = self.youtube.insert(part='snippet', body=body)
-        resp = request.execute()
-        print(type(resp))
+        self.youtube.liveChatMessages().insert(part='snippet', body=body).execute()
 
-    def get_messages(self):
+    def get_messages(self, skip=False):
         # Request messages that have been sent since the last check
-        request = self.youtube.list(liveChatId=self.stream_id, part='snippet', pageToken=self.next_page_token)
+        request = self.youtube.liveChatMessages().list(liveChatId=self.stream_id, part='snippet,authorDetails', pageToken=self.next_page_token)
         resp = request.execute()
 
-        self.next_page_token = resp.nextPageToken
+        self.next_page_token = resp['nextPageToken']
+
+        # Option to get messages and not actually parse them at all. This is done in order to set `self.next_page_token` without taking up unnecessary time
+        if skip:
+            return
 
         messages = []
-        for message in resp.items:
+        for message in resp['items']:
             # Only track chat text messages
-            if message.snippet.type != 'textMessageEvent':
+            if message['snippet']['type'] != 'textMessageEvent':
                 continue
             
-            messages.append([message.snippet.textMessageDetails.messageText, message.authorDetails.displayName, message.authorDetails.isChatModerator])
+            is_admin = message['authorDetails']['isChatModerator'] or message['authorDetails']['isChatOwner']
+            messages.append([message['snippet']['textMessageDetails']['messageText'], message['authorDetails']['displayName'], is_admin])
 
         return messages
 
     def start(self):
+        # Read any existing messages so that the bot doesn't follow old commands
+        self.get_messages(True)
+
         self.send_message('Bot online') 
 
         while True:
