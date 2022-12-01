@@ -1,5 +1,7 @@
 import os.path
 
+from time import sleep
+
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -20,8 +22,8 @@ class YoutubeBot:
         resp = req.execute()
 
         self.stream_id = resp['items'][0]['liveStreamingDetails']['activeLiveChatId']
-        print(self.stream_id)
         self.next_page_token = None
+        self.delay = 0
 
     def youtube_connect(self):
         # Load credentials
@@ -62,6 +64,7 @@ class YoutubeBot:
         resp = request.execute()
 
         self.next_page_token = resp['nextPageToken']
+        self.delay = float(float(resp['pollingIntervalMillis']) / 1000)
 
         # Option to get messages and not actually parse them at all. This is done in order to set `self.next_page_token` without taking up unnecessary time
         if skip:
@@ -101,13 +104,13 @@ class YoutubeBot:
                     else:
                         self.roll_dice(message_words[1], author)
 
+            sleep(self.delay)
+
     def send_random_quote(self, user):
-        # Ensure that there is at least 1 quote to get
-        if self.bot.quote_count() == 0:
-            self.send_message(f"{user} There are no quotes to display")
+        num, quote = self.bot.get_random_quote()
+        if num == -1:
+            self.send_message(f"{user} {quote}")
         else:
-            # Get random quote
-            num, quote = self.bot.get_random_quote()
             self.send_message(f"{user} Quote #{num+1}: {quote}")
 
     def roll_dice(cmd, user):
